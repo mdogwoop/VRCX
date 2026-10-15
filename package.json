@@ -38,7 +38,9 @@
         "build-electron-arm64": "node ./build-scripts/download-dotnet-runtime.js --arch=arm64 && node ./build-scripts/patch-package-version.js && electron-builder --config electron-builder.config.js --arm64 --publish never",
         "postbuild-electron": "node ./build-scripts/patch-node-api-dotnet.js --arch=x64 && node ./build-scripts/rename-builds.js --arch=x64",
         "postbuild-electron-arm64": "node ./build-scripts/patch-node-api-dotnet.js --arch=arm64 && node ./build-scripts/rename-builds.js --arch=arm64",
-        "start-electron": "electron . --hot-reload"
+        "start-electron": "electron . --hot-reload",
+        "test:auth-vault": "node --test tests/auth-session-vault.test.cjs tests/interop-auth-boundary.test.cjs",
+        "test:qr-auth-backend": "dotnet run --project tests/QrAuth/QrAuth.csproj"
     },
     "dependencies": {
         "hazardous": "^0.3.0",
@@ -90,6 +92,7 @@
         "oxlint-plugin-eslint": "^1.86.0",
         "oxlint-tsgolint": "^7.0.2003",
         "pinia": "^4.0.3",
+        "qrcode": "1.5.4",
         "reka-ui": "^2.10.5",
         "remixicon": "^4.9.1",
         "sigma": "^3.0.3",

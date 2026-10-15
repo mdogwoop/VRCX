@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createI18n } from 'vue-i18n';
 import { createTestingPinia } from '@pinia/testing';
-import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { flushPromises, mount } from '@vue/test-utils';
+import { reactive, ref } from 'vue';
+
+const fixtures = vi.hoisted(() => ({ saved: {}, stop: vi.fn().mockResolvedValue(true) }));
 
 vi.mock('../../../views/Feed/Feed.vue', () => ({
     default: { template: '<div />' }
@@ -45,7 +47,11 @@ vi.mock('../../../services/database', () => ({
 vi.mock('../../../services/config', () => ({
     default: {
         init: vi.fn(),
-        getString: vi.fn().mockImplementation((_k, d) => d ?? '{}'),
+        getString: vi
+            .fn()
+            .mockImplementation((key, d) =>
+                key === 'savedCredentials' ? JSON.stringify(fixtures.saved) : (d ?? '{}')
+            ),
         setString: vi.fn(),
         getBool: vi.fn().mockImplementation((_k, d) => d ?? false),
         setBool: vi.fn(),
@@ -83,13 +89,14 @@ vi.mock('vee-validate', () => ({
     useForm: vi.fn(() => ({
         handleSubmit: (fn) => fn,
         resetForm: vi.fn(),
-        values: {}
+        values: reactive({})
     }))
 }));
 vi.mock('@vee-validate/zod', () => ({ toTypedSchema: vi.fn((s) => s) }));
 
 import Login from '../Login.vue';
 import en from '../../../localization/en.json';
+import configRepository from '../../../services/config';
 
 const i18n = createI18n({
     locale: 'en',
@@ -102,6 +109,12 @@ const i18n = createI18n({
 });
 
 const stubs = {
+    QrLogin: {
+        template: '<section class="qr-login-stub" />',
+        setup(_, { expose }) {
+            expose({ stop: fixtures.stop });
+        }
+    },
     LoginSettingsDialog: { template: '<div class="login-settings-stub" />' },
     TooltipWrapper: {
         template: '<span><slot /></span>',
@@ -140,6 +153,7 @@ const stubs = {
 /**
  * @param storeOverrides
  */
+const wrappers = [];
 function mountLogin(storeOverrides = {}) {
     const pinia = createTestingPinia({
         stubActions: false,
@@ -158,17 +172,26 @@ function mountLogin(storeOverrides = {}) {
             }
         }
     });
-    return mount(Login, {
+    const wrapper = mount(Login, {
         global: {
             plugins: [i18n, pinia],
             stubs
         }
     });
+    wrappers.push(wrapper);
+    return wrapper;
 }
 
 describe('Login.vue', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        fixtures.saved = {};
+        configRepository.setString.mockImplementation((key, value) => {
+            if (key === 'savedCredentials') fixtures.saved = JSON.parse(value);
+        });
+    });
+    afterEach(() => {
+        wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
     });
 
     describe('form rendering', () => {
@@ -203,10 +226,51 @@ describe('Login.vue', () => {
     });
 
     describe('saved accounts section', () => {
-        test('does not render saved accounts when credentials are empty', () => {
+        test('automatically shows the QR panel after deleting the last saved account', async () => {
+            fixtures.saved = { usr_one: { user: { id: 'usr_one', displayName: 'Only account' }, loginParams: {} } };
             const wrapper = mountLogin();
+            await flushPromises();
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(false);
+            await wrapper.find('.x-saved-account-list button').trigger('click');
+            await flushPromises();
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(true);
+            expect(wrapper.text()).not.toContain(en.view.login.qr.add_account);
+        });
+        test('always displays QR login to the right of the password form without saved accounts', async () => {
+            const wrapper = mountLogin();
+            await flushPromises();
             const divider = wrapper.find('.x-vertical-divider');
-            expect(divider.exists()).toBe(false);
+            expect(divider.exists()).toBe(true);
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(true);
+            expect(wrapper.find('#login-form').exists()).toBe(true);
+            expect(
+                wrapper
+                    .find('.x-login-form-container')
+                    .element.children[2].contains(wrapper.find('.qr-login-stub').element)
+            ).toBe(true);
+            expect(wrapper.text()).not.toContain(en.view.login.qr.add_account);
+        });
+
+        test('places QR add button below the last saved account and opens and closes the QR panel', async () => {
+            fixtures.saved = {
+                usr_one: { user: { id: 'usr_one', displayName: 'First account', username: 'first' }, loginParams: {} },
+                usr_two: { user: { id: 'usr_two', displayName: 'Last account', username: 'last' }, loginParams: {} }
+            };
+            const wrapper = mountLogin();
+            await flushPromises();
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(false);
+            const button = wrapper.findAll('button').find((button) => button.text() === en.view.login.qr.add_account);
+            expect(button.element).toBe(wrapper.find('.x-saved-account-list').element.lastElementChild);
+            expect(wrapper.text()).toContain('Last account');
+            await button.trigger('click');
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(true);
+            expect(wrapper.find('#login-form').exists()).toBe(true);
+            await wrapper
+                .findAll('button')
+                .find((button) => button.text() === en.view.login.qr.back)
+                .trigger('click');
+            expect(wrapper.find('.qr-login-stub').exists()).toBe(false);
+            expect(wrapper.text()).toContain('Last account');
         });
     });
 

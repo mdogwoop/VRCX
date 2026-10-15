@@ -1,6 +1,35 @@
 // requires binding of WebApi
 
 class WebApiService {
+    async beginQrLogin() {
+        return JSON.parse(await WebApi.BeginQrLogin());
+    }
+
+    async getQrLoginState(operationId) {
+        return JSON.parse(await WebApi.GetQrLoginState(operationId));
+    }
+
+    cancelQrLogin() {
+        return WebApi.CancelQrLogin();
+    }
+
+    async commitQrLogin(operationId) {
+        return JSON.parse(await WebApi.CommitQrLogin(operationId));
+    }
+
+    saveExternalSession(userId) {
+        return LINUX ? window.electron.saveAuthSession(userId) : WebApi.SaveExternalSession(userId);
+    }
+
+    async loadExternalSession(userId) {
+        const result = LINUX ? await window.electron.loadAuthSession(userId) : await WebApi.LoadExternalSession(userId);
+        return JSON.parse(result);
+    }
+
+    deleteExternalSession(userId) {
+        return LINUX ? window.electron.deleteAuthSession(userId) : WebApi.DeleteExternalSession(userId);
+    }
+
     clearCookies() {
         return WebApi.ClearCookies();
     }

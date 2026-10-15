@@ -241,6 +241,28 @@
     },
     "view": {
         "login": {
+            "qr": {
+                "title": "Log in with QR code",
+                "image_alt": "Scan to log in to VRCX",
+                "instruction": "Scan with the VRChat mobile app to log in.",
+                "add_account": "Add a new account with QR code",
+                "back": "Back to saved accounts",
+                "retry": "Refresh QR code",
+                "signing_in": "Signing in…",
+                "paused": "QR login is paused while another account signs in.",
+                "primary_password_hint": "With a primary password enabled, QR login is available for this session only.",
+                "errors": {
+                    "network_error": "Could not connect. Refresh the QR code to try again.",
+                    "unavailable": "QR login is currently unavailable.",
+                    "rate_limited": "Too many requests. Wait before refreshing the QR code.",
+                    "website_required": "Complete account verification on the VRChat website, then try again.",
+                    "login_failed": "Could not sign in. Refresh the QR code to try again.",
+                    "storage_unavailable": "Secure storage is unavailable. You can still log in for this session.",
+                    "reauthorize": "This saved session has expired. Scan a new QR code to log in.",
+                    "primary_password": "Remove accounts saved with QR login before enabling a primary password.",
+                    "custom_endpoint": "QR login requires the official VRChat API."
+                }
+            },
             "savedAccounts": "Saved Accounts",
             "login": "Login",
             "register": "Register",

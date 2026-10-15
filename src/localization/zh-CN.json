@@ -240,6 +240,28 @@
     },
     "view": {
         "login": {
+            "qr": {
+                "title": "二维码登录",
+                "image_alt": "扫码登录 VRCX",
+                "instruction": "使用 VRChat 手机应用扫描二维码登录。",
+                "add_account": "使用二维码添加新账户",
+                "back": "返回已保存账号",
+                "retry": "刷新二维码",
+                "signing_in": "正在登录…",
+                "paused": "其他账号正在登录，二维码登录已暂停。",
+                "primary_password_hint": "启用主密码时，二维码登录仅在本次会话有效。",
+                "errors": {
+                    "network_error": "无法连接，请刷新二维码重试。",
+                    "unavailable": "二维码登录暂时不可用。",
+                    "rate_limited": "请求过于频繁，请稍后刷新二维码。",
+                    "website_required": "请先在 VRChat 官网完成账号验证，然后重试。",
+                    "login_failed": "登录失败，请刷新二维码重试。",
+                    "storage_unavailable": "安全存储不可用，仍可在本次会话中登录。",
+                    "reauthorize": "已保存的会话已过期，请重新扫码登录。",
+                    "primary_password": "请先移除通过二维码保存的账号，再启用主密码。",
+                    "custom_endpoint": "二维码登录需要使用 VRChat 官方 API。"
+                }
+            },
             "savedAccounts": "已保存的账号",
             "login": "登录",
             "register": "注册",

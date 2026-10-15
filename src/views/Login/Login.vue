@@ -91,12 +91,18 @@
                             </VeeField>
                         </FieldGroup>
                         <label class="inline-flex items-center gap-2 mr-2 mt-3 text-sm">
-                            <Checkbox v-model="loginForm.saveCredentials" />
+                            <Checkbox v-model="loginForm.saveCredentials" :disabled="loginForm.loading" />
                             <span>{{ t('view.login.field.saveCredentials') }}</span>
                         </label>
 
                         <Field class="mt-4">
-                            <Button type="submit" size="lg" style="width: 100%">{{ t('view.login.login') }}</Button>
+                            <Button
+                                type="submit"
+                                size="lg"
+                                style="width: 100%"
+                                :disabled="loginForm.loading || passwordAttempt"
+                                >{{ t('view.login.login') }}</Button
+                            >
                         </Field>
                     </form>
                     <Button
@@ -108,9 +114,20 @@
                     >
                 </div>
 
-                <hr v-if="Object.keys(savedCredentials).length !== 0" class="x-vertical-divider" />
+                <hr class="x-vertical-divider" />
 
-                <div v-if="Object.keys(savedCredentials).length !== 0">
+                <div v-if="savedAccountsReady && showQrPanel" class="x-qr-panel">
+                    <QrLogin ref="qrLogin" :paused="passwordAttempt" />
+                    <Button
+                        v-if="hasSavedAccounts"
+                        variant="ghost"
+                        class="mt-2"
+                        :disabled="loginForm.loading || passwordAttempt"
+                        @click="qrExpanded = false">
+                        {{ t('view.login.qr.back') }}
+                    </Button>
+                </div>
+                <div v-else>
                     <h2 class="m-0" style="font-weight: bold; text-align: center">
                         {{ t('view.login.savedAccounts') }}
                     </h2>
@@ -120,6 +137,7 @@
                                 v-for="user in savedCredentials"
                                 :key="user.user.id"
                                 class="cursor-pointer hover:bg-muted p-2 border-0"
+                                :aria-disabled="loginForm.loading || passwordAttempt"
                                 @click="clickSavedLogin(user)">
                                 <ItemMedia class="relative size-10">
                                     <Avatar class="size-full rounded-full">
@@ -144,11 +162,20 @@
                                         size="icon-sm"
                                         variant="ghost"
                                         class="cursor-pointer rounded-full"
+                                        :disabled="loginForm.loading || passwordAttempt"
                                         @click="clickDeleteSavedLogin(user.user.id)"
                                         ><Trash2 class="text-sm"
                                     /></Button>
                                 </ItemActions>
                             </Item>
+                            <Button
+                                v-if="savedAccountsReady && hasSavedAccounts"
+                                variant="outline"
+                                class="mt-2 w-full"
+                                :disabled="loginForm.loading || passwordAttempt"
+                                @click="qrExpanded = true">
+                                <QrCode class="size-4 shrink-0" />{{ t('view.login.qr.add_account') }}
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -189,11 +216,11 @@
         DropdownMenuContent,
         DropdownMenuTrigger
     } from '@/components/ui/dropdown-menu';
-    import { onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
+    import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
     import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
     import IconFrame from '@/components/IconFrame.vue';
     import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
-    import { ArrowBigDownDash, Languages, Trash2, TriangleAlert, User } from 'lucide-vue-next';
+    import { ArrowBigDownDash, Languages, QrCode, Trash2, TriangleAlert, User } from 'lucide-vue-next';
     import { Field as VeeField, useForm } from 'vee-validate';
     import { useRoute, useRouter } from 'vue-router';
     import { Button } from '@/components/ui/button';
@@ -220,6 +247,7 @@
     import { watchState } from '../../services/watchState';
 
     import LoginSettingsDialog from './Dialog/LoginSettingsDialog.vue';
+    import QrLogin from './QrLogin.vue';
 
     const { userImage } = useUserDisplay();
     const { showVRCXUpdateDialog } = useVRCXUpdaterStore();
@@ -240,6 +268,12 @@
 
     /** @type {import('vue').Ref<Record<string, any>>} */
     const savedCredentials = ref({});
+    const savedAccountsReady = ref(false);
+    const qrExpanded = ref(false);
+    const qrLogin = ref(null);
+    const passwordAttempt = ref(false);
+    const hasSavedAccounts = computed(() => Object.keys(savedCredentials.value).length > 0);
+    const showQrPanel = computed(() => !hasSavedAccounts.value || qrExpanded.value);
     const requiredMessage = 'Required';
 
     const formSchema = toTypedSchema(
@@ -261,6 +295,7 @@
      * @param userId
      */
     async function clickDeleteSavedLogin(userId) {
+        if (loginForm.value.loading || passwordAttempt.value) return;
         await deleteSavedLogin(userId);
         await updateSavedCredentials();
     }
@@ -269,19 +304,31 @@
      * @param user
      */
     async function clickSavedLogin(user) {
+        if (loginForm.value.loading || passwordAttempt.value) return;
+        passwordAttempt.value = true;
         try {
+            await qrLogin.value?.stop();
             await relogin(user);
         } catch {
             // relogin already handles user-facing error display (toast)
+        } finally {
+            passwordAttempt.value = false;
         }
         await updateSavedCredentials();
     }
 
     const onSubmit = handleSubmit(async (formValues) => {
+        if (loginForm.value.loading || passwordAttempt.value) return;
+        passwordAttempt.value = true;
         loginForm.value.username = formValues.username ?? '';
         loginForm.value.password = formValues.password ?? '';
-        await login();
-        await updateSavedCredentials();
+        try {
+            await qrLogin.value?.stop();
+            await login();
+            await updateSavedCredentials();
+        } finally {
+            passwordAttempt.value = false;
+        }
     });
 
     async function updateSavedCredentials() {
@@ -289,6 +336,7 @@
             return;
         }
         savedCredentials.value = await getAllSavedCredentials();
+        savedAccountsReady.value = true;
     }
 
     function postLoginRedirect() {
@@ -418,7 +466,7 @@
         display: grid;
         grid-template-rows: repeat(2, auto);
         align-items: center;
-        max-width: clamp(600px, 60svw, 800px);
+        width: min(720px, calc(100svw - 32px));
     }
 
     .x-login-form-container {
@@ -427,7 +475,7 @@
         height: 380px;
     }
 
-    .x-login-form-container:has(> div:nth-child(3)) {
+    .x-login-form-container {
         grid-template-columns: 1fr 1px 1fr;
     }
 
@@ -462,5 +510,25 @@
 
     .x-legal-notice-container {
         margin-top: 8px;
+    }
+
+    @media (max-width: 600px) {
+        .x-login-container {
+            position: relative;
+            min-height: 100%;
+            height: auto;
+            padding-top: 48px;
+            padding-bottom: 16px;
+        }
+        .x-login-form-container {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        hr.x-vertical-divider {
+            display: none;
+        }
+        .x-scroll-wrapper {
+            max-height: 320px;
+        }
     }
 </style>
